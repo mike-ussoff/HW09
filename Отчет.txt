@@ -1,0 +1,65 @@
+1. Сделаем отчет на базе представления [AdventureWorks].[Sales].[vSalesPerson] в Power BI. 
+
+2. Представление базируется на содержимом таблиц
+
+[Sales].[SalesPerson] 
+[HumanResources].[Employee]
+[Person].[Person]
+[Person].[BusinessEntityAddress]
+[Person].[Address] 
+[Person].[StateProvince]
+[Person].[CountryRegion]
+[Sales].[SalesTerritory]
+[Person].[EmailAddress]
+[Person].[PersonPhone]
+[Person].[PhoneNumberType]
+
+, поэтому всех их перенесем в postgres.
+
+3. Добавим вспомогательную функцию [dbo].[GetString] из файла "Step 1- Prerequisite.sql", затем запросом из "Step 2- Create schema and table.sql" вытащим из базы объявления схем и таблиц. Применим полученные определения в базе postgres, попутно заменив hierarchyid => character varying(20). Файлы "Step 1- Prerequisite.sql" и "Step 2- Create schema and table.sql" из репозитория https://github.com/yogimehla/SQLtoPostgresMigrationScript.
+
+4. Выполним перенос данных перечисленных таблиц с испльзованием DBeaver через экспорт данных. Кое-где в принимающих таблицах нужно поправить размерность numeric.
+
+5. Создадим представление (скриншот "Create schemas.png") 
+
+CREATE OR REPLACE VIEW sales.vsalesperson
+AS SELECT s.businessentityid,
+    p.title,
+    p.firstname,
+    p.middlename,
+    p.lastname,
+    p.suffix,
+    e.jobtitle,
+    pp.phonenumber,
+    pnt.name AS phonenumbertype,
+    ea.emailaddress,
+    p.emailpromotion,
+    a.addressline1,
+    a.addressline2,
+    a.city,
+    sp.name AS province,
+    a.postalcode,
+    cr.name AS countryregion,
+    st.name AS territory,
+    st."Group" AS territorygroup,
+    s.salesquota,
+    s.salesytd,
+    s.saleslastyear
+   FROM sales.salesperson s
+     JOIN humanresources.employee e ON e.businessentityid = s.businessentityid
+     JOIN person.person p ON p.businessentityid = s.businessentityid
+     JOIN person.businessentityaddress bea ON bea.businessentityid = s.businessentityid
+     JOIN person.address a ON a.addressid = bea.addressid
+     JOIN person.stateprovince sp ON sp.stateprovinceid = a.stateprovinceid
+     JOIN person.countryregion cr ON cr.countryregioncode::text = sp.countryregioncode::text
+     LEFT JOIN sales.salesterritory st ON st.territoryid = s.territoryid
+     LEFT JOIN person.emailaddress ea ON ea.businessentityid = p.businessentityid
+     LEFT JOIN person.personphone pp ON pp.businessentityid = p.businessentityid
+     LEFT JOIN person.phonenumbertype pnt ON pnt.phonenumbertypeid = pp.phonenumbertypeid;
+
+6. Базы данных подготовлены, создадим ODBC DSN "PG for Report" и "SS for Report" (скриншот DSN.png).
+
+7. Создадим 2 отчета в Power BI. Для одного в качестве источника данных будет база данных MS SQL, для другого база данных Postgres. Получили 2 идентичных отчета. Разница только в названих полей, в pg все буквы строчные (скриншоты "MS SQL report.png" и "Postgress report.png").
+
+
+
